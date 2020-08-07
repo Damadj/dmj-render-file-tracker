@@ -1,0 +1,30 @@
+.button {
+    -fx-background-color: #F3F3F3;
+}
+.button:hover {
+    -fx-background-color: #dddddd;
+}
+.button:pressed {
+    -fx-background-color: #939393;
+}
+.buttonPackage {
+    -fx-background-color: transparent;
+}
+.buttonPackage:hover {
+    -fx-background-color: #dddddd;
+}
+.buttonPackage:pressed {
+    -fx-background-color: #939393;
+}
+.buttonInfo {
+    -fx-background-color: transparent;
+}
+.buttonInfo:hover {
+    -fx-background-color: #dddddd;
+}
+.buttonInfo:pressed {
+    -fx-background-color: #939393;
+}
+
+
+
