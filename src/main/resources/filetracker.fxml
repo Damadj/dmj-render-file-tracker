@@ -80,5 +80,11 @@
             <Font size="18.0" />
          </font>
       </Label>
+      <TextField fx:id="telegramId" layoutX="50.0" layoutY="502.0" prefHeight="26.0" prefWidth="122.0" />
+      <Label fx:id="labelTelegramId" layoutX="190.0" layoutY="505.0" text="telegram id" textFill="WHITE">
+         <font>
+            <Font size="18.0" />
+         </font>
+      </Label>
    </children>
 </AnchorPane>

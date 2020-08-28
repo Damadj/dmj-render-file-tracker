@@ -7,7 +7,8 @@ import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
 public class FileTrackerBot extends TelegramLongPollingBot {
 
-    private String id = "";
+    private Long id = 0L;
+    private String userName = "";
 
     @Override
     public void onUpdateReceived(Update update) {
@@ -15,7 +16,8 @@ public class FileTrackerBot extends TelegramLongPollingBot {
         SendMessage sendMessage = new SendMessage().setChatId(update.getMessage().getChatId());
         if (update.getMessage().getText().equals("/start")) {
             sendMessage.setText("Ready to work");
-            id = update.getMessage().getChatId().toString();
+            id = update.getMessage().getChatId();
+            userName = System.getProperty("user.name");
             try {
                 execute(sendMessage);
             } catch (TelegramApiException e){
@@ -24,7 +26,7 @@ public class FileTrackerBot extends TelegramLongPollingBot {
         }
     }
 
-    public synchronized void sendMessage(String chatId, String s) {
+    public synchronized void sendMessage(Long chatId, String s) {
         SendMessage message = new SendMessage();
 
         message.setChatId(chatId);
@@ -38,21 +40,25 @@ public class FileTrackerBot extends TelegramLongPollingBot {
 
     @Override
     public String getBotUsername() {
-        // Return bot username
-        // If bot username is @MyAmazingBot, it must return 'MyAmazingBot'
         return "Dmj_file_tracker_bot";
     }
 
     @Override
     public String getBotToken() {
-        // Return bot token from BotFather
         return "1265699567:AAEjarSUkwHgNu2o3Keb7eKev9Ulu3cqCCw";
     }
 
-    public String getId() {
+    public Long getId() {
         return id;
     }
-    public void setId(String id) {
+    public void setId(Long id) {
         this.id = id;
+    }
+
+    public String getUserName() {
+        return userName;
+    }
+    public void setUserName(String userName) {
+        this.userName = userName;
     }
 }

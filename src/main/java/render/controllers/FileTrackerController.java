@@ -12,7 +12,7 @@ import org.telegram.telegrambots.meta.TelegramBotsApi;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import render.bots.FileTrackerBot;
 
-import java.io.File;
+import java.io.*;
 import java.net.URL;
 import java.util.Objects;
 import java.util.Optional;
@@ -36,9 +36,17 @@ public class FileTrackerController implements Initializable {
     @FXML
     TextField files;
     @FXML
+    TextField telegramId;
+    @FXML
     Label labelMinutes;
     @FXML
     Label labelFiles;
+    @FXML
+    Label labelTelegramId;
+
+    String cfg = "";
+
+    int counter = 0;
 
     FileTrackerBot fileTrackerBot;
     private String folder = "";
@@ -53,22 +61,24 @@ public class FileTrackerController implements Initializable {
             chooseFolder();
         } else if (mouseEvent.getSource() == btnInfo) {
             Alert alert = new Alert(Alert.AlertType.INFORMATION);
-            alert.setHeight(330);
-            alert.setWidth(500);
+            alert.setHeight(500);
+            alert.setWidth(700);
             alert.setTitle("Information");
             alert.setHeaderText(null);
-            alert.setContentText("-write '/start' to telegram bot\n   @Dmj_file_tracker_bot\n-choose directory\n" +
+            alert.setContentText("write '/start' to telegram bot @userinfobot\n   to get your telegram id\n" + "-fill in telegram id\n" +
+                    "-write '/start' to telegram bot\n   @Dmj_file_tracker_bot(only first time)\n-choose directory\n" +
                     "-fill in tracking interval(minutes)\n-fill in final number of rendered files\n" +
                     "-to start - press power button in the middle\n-to force stop - press power button again");
             alert.showAndWait();
         } else if (mouseEvent.getSource() == btnStart) {
-            if (files.getText() == null || files.getText().equals("") || minutes.getText() == null || minutes.getText().equals("")) {
+            if (files.getText() == null || files.getText().equals("") || minutes.getText() == null || minutes.getText().equals("")
+        || telegramId.getText() == null || telegramId.getText().equals("") || folder.equals("")) {
                 Alert alert = new Alert(Alert.AlertType.WARNING);
                 alert.setTitle("WARNING");
                 alert.setHeaderText("Specify all parameters before start");
-                alert.setContentText("(folder, minutes, files)");
+                alert.setContentText("(folder, minutes, files, telegram id)");
                 alert.showAndWait();
-            } else if (fileTrackerBot.getId().isEmpty()) {
+            } else if (Long.parseLong(telegramId.getText()) == 0L) {
                 Alert alert = new Alert(Alert.AlertType.WARNING);
                 alert.setTitle("WARNING");
                 alert.setHeaderText("Connect to telegram bot first");
@@ -79,9 +89,11 @@ public class FileTrackerController implements Initializable {
                 btnStart.setDisable(true);
                 btnStart.setOpacity(0);
                 files.setDisable(true);
+                telegramId.setDisable(true);
                 minutes.setDisable(true);
                 btnStop.setDisable(false);
                 btnStop.setOpacity(1);
+                counter = 0;
                 Runnable trackRunnable = new Runnable() {
                     public void run() {
                         startTracking();
@@ -98,7 +110,7 @@ public class FileTrackerController implements Initializable {
             if (!result.isPresent()) alert.close();
             else if (result.get() == ButtonType.OK) {
                 stopTracking();
-                fileTrackerBot.sendMessage(fileTrackerBot.getId(),"Tracking was forcibly stopped");
+                fileTrackerBot.sendMessage(Long.parseLong(telegramId.getText()),"Tracking was forcibly stopped on user: " + fileTrackerBot.getUserName());
             }
         }
     }
@@ -108,6 +120,24 @@ public class FileTrackerController implements Initializable {
         ApiContextInitializer.init();
         TelegramBotsApi botsApi = new TelegramBotsApi();
         fileTrackerBot = new FileTrackerBot();
+        fileTrackerBot.setUserName(System.getProperty("user.name"));
+        try {
+            File file = new File("trackerconfig.txt");
+            file.createNewFile();
+            BufferedReader reader = new BufferedReader(new FileReader("trackerconfig.txt"));
+            cfg = reader.readLine();
+            if (!cfg.isEmpty()) {
+                String[] params = cfg.split(":");
+                minutes.setText(params[0]);
+                files.setText(params[1]);
+                telegramId.setText(params[2]);
+            }
+            reader.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        } catch (NullPointerException e) {
+            cfg = "";
+        }
         try {
             botsApi.registerBot(fileTrackerBot);
         } catch (TelegramApiException e) {
@@ -131,6 +161,15 @@ public class FileTrackerController implements Initializable {
                 }
             }
         });
+        telegramId.textProperty().addListener(new ChangeListener<String>() {
+            @Override
+            public void changed(ObservableValue<? extends String> observable, String oldValue,
+                                String newValue) {
+                if (!newValue.matches("\\d*")) {
+                    telegramId.setText(newValue.replaceAll("[^\\d]", ""));
+                }
+            }
+        });
     }
 
 
@@ -145,21 +184,37 @@ public class FileTrackerController implements Initializable {
     }
 
     private void startTracking() {
+        try {
+            FileWriter writer = new FileWriter("trackerconfig.txt");
+            writer.write("");
+            writer.write(minutes.getText() + ":" + files.getText() + ":" + telegramId.getText());
+            writer.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
         int filesCap = Integer.parseInt(files.getText()) + initialNumberOfFiles;
         if (currentNumberOfFiles < filesCap) {
+            if (counter >= 3) {
+                stopTracking();
+                fileTrackerBot.sendMessage(Long.parseLong(telegramId.getText()),"Files are not increasing for a long period, tracking stopped on user: " + fileTrackerBot.getUserName());
+            }
             int previousAmount = currentNumberOfFiles;
             currentNumberOfFiles = Objects.requireNonNull(new File(folder).listFiles()).length;
-            if (previousAmount == currentNumberOfFiles && firstIteration) {
+            if (currentNumberOfFiles > previousAmount) counter = 0;
+            if (previousAmount == currentNumberOfFiles && firstIteration && counter == 0) {
                 firstIteration = false;
-                fileTrackerBot.sendMessage(fileTrackerBot.getId(),"File tracker successfully started");
+                fileTrackerBot.sendMessage(Long.parseLong(telegramId.getText()),"File tracker successfully started on user: " + fileTrackerBot.getUserName());
             }
-            else if (previousAmount == currentNumberOfFiles) {
-                fileTrackerBot.sendMessage(fileTrackerBot.getId(),
-                        "WARNING! After last " + minutes.getText() + " minute(s) number of files("+ currentNumberOfFiles +") has not been increased");
+            else if (previousAmount == currentNumberOfFiles && counter != 3) {
+                counter++;
+                fileTrackerBot.sendMessage(Long.parseLong(telegramId.getText()),
+                        "WARNING! After last " + minutes.getText() + " minute(s) number of files("+ currentNumberOfFiles +") has not been increased on user: "
+                                + fileTrackerBot.getUserName());
             }
         } else {
             stopTracking();
-            fileTrackerBot.sendMessage(fileTrackerBot.getId(),"Tracking successfully finished, number of rendered files: "+ (currentNumberOfFiles - initialNumberOfFiles));
+            fileTrackerBot.sendMessage(Long.parseLong(telegramId.getText()),"Tracking successfully finished on user: " + fileTrackerBot.getUserName()
+                    + ", number of rendered files: "+ (currentNumberOfFiles - initialNumberOfFiles));
         }
     }
 
@@ -172,6 +227,7 @@ public class FileTrackerController implements Initializable {
         btnStart.setOpacity(1);
         files.setDisable(false);
         minutes.setDisable(false);
+        telegramId.setDisable(false);
         btnStop.setDisable(true);
         btnStop.setOpacity(0);
     }
