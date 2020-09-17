@@ -4,25 +4,42 @@ import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
+import render.controllers.FileTrackerController;
 
 public class FileTrackerBot extends TelegramLongPollingBot {
 
+    private FileTrackerController fileTrackerController;
     private Long id = 0L;
     private String userName = "";
+
+    public FileTrackerBot(FileTrackerController fileTrackerController) {
+        this.fileTrackerController = fileTrackerController;
+    }
 
     @Override
     public void onUpdateReceived(Update update) {
         update.getUpdateId();
         SendMessage sendMessage = new SendMessage().setChatId(update.getMessage().getChatId());
-        if (update.getMessage().getText().equals("/start")) {
-            sendMessage.setText("Ready to work");
-            id = update.getMessage().getChatId();
-            userName = System.getProperty("user.name");
-            try {
+        try {
+            if (update.getMessage().getText().equals("/start")) {
+                sendMessage.setText("Ready to work");
+                id = update.getMessage().getChatId();
+                userName = System.getProperty("user.name");
                 execute(sendMessage);
-            } catch (TelegramApiException e){
-                e.printStackTrace();
             }
+            if (update.getMessage().getText().equals("/report")) {
+                if (fileTrackerController.getTelegramId().getText().equals(update.getMessage().getChatId().toString())) {
+                    if (!fileTrackerController.isStarted()) sendMessage.setText("File tracker is not started");
+                    else sendMessage.setText(fileTrackerController.buildReport());
+                    execute(sendMessage);
+                }
+            }
+            if (update.getMessage().getText().equals("/id")) {
+                sendMessage.setText(update.getMessage().getChatId().toString());
+                execute(sendMessage);
+            }
+        } catch (TelegramApiException e) {
+            e.printStackTrace();
         }
     }
 
