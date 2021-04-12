@@ -8,11 +8,18 @@ import javafx.scene.Scene;
 import javafx.scene.image.Image;
 import javafx.stage.Stage;
 
+import java.io.IOException;
+
 public class Main extends Application {
 
     @Override
-    public void start(Stage stage) throws Exception {
-        Parent root = FXMLLoader.load(getClass().getResource("/filetracker.fxml"));
+    public void start(Stage stage) {
+        Parent root = null;
+        try {
+            root = FXMLLoader.load(getClass().getResource("/filetracker.fxml"));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
         stage.setResizable(false);
         stage.getIcons().add(new Image("/icons/folder.png"));
         stage.setTitle("Damadj's file tracker");

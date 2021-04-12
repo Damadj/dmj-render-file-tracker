@@ -1,6 +1,5 @@
 package render.controllers;
 
-import com.pengrad.telegrambot.TelegramBot;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
 import javafx.event.ActionEvent;
@@ -66,8 +65,6 @@ public class FileTrackerController implements Initializable {
     private int intervalInSeconds;
     private long startTime;
     private boolean started = false;
-    private boolean firstIteration;
-    private Runnable trackRunnable;
     private ScheduledExecutorService exec = Executors.newScheduledThreadPool(1);
 
     @FXML
@@ -86,11 +83,12 @@ public class FileTrackerController implements Initializable {
                 alert.setContentText("(folder, files, telegram/group id)");
                 alert.showAndWait();
             } else {
-               prepareForStartTracker();
-                if (intervalInSeconds == 0) trackRunnable = () -> startTrackingWithoutNotifications();
-                else trackRunnable = () -> startTrackingWithNotifications();
+                prepareForStartTracker();
+                Runnable trackRunnable;
+                if (intervalInSeconds == 0) trackRunnable = this::startTrackingWithoutNotifications;
+                else trackRunnable = this::startTrackingWithNotifications;
                 exec.scheduleAtFixedRate(trackRunnable, 0, 1, TimeUnit.SECONDS);
-                fileTrackerBot.sendMessage(Long.parseLong(telegramId.getText()),"File tracker successfully started on: " + fileTrackerBot.getUserName());
+                fileTrackerBot.sendMessage(Long.parseLong(telegramId.getText()), "File tracker successfully started on: " + fileTrackerBot.getUserName());
             }
         } else if (mouseEvent.getSource() == btnStop) {
             Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
@@ -101,7 +99,7 @@ public class FileTrackerController implements Initializable {
             if (!result.isPresent()) alert.close();
             else if (result.get() == ButtonType.OK) {
                 stopTracking();
-                fileTrackerBot.sendMessage(Long.parseLong(telegramId.getText()),"File tracker was forcibly stopped on: " + fileTrackerBot.getUserName());
+                fileTrackerBot.sendMessage(Long.parseLong(telegramId.getText()), "File tracker was forcibly stopped on: " + fileTrackerBot.getUserName());
             }
         }
     }
@@ -120,17 +118,21 @@ public class FileTrackerController implements Initializable {
         TelegramBotsApi botsApi = new TelegramBotsApi();
         fileTrackerBot = new FileTrackerBot(this);
         fileTrackerBot.setUserName(System.getProperty("user.name"));
-        TelegramBot bot = new TelegramBot("1265699567:AAEjarSUkwHgNu2o3Keb7eKev9Ulu3cqCCw");
         try {
             botsApi.registerBot(fileTrackerBot);
             botsApi.registerBot(fileTrackerBot);
         } catch (TelegramApiException e) {
             e.printStackTrace();
         }
+        File file = new File("trackerconfig.txt");
         try {
-            File file = new File("trackerconfig.txt");
             file.createNewFile();
-            BufferedReader reader = new BufferedReader(new FileReader("trackerconfig.txt"));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        try (BufferedReader reader = new BufferedReader(new FileReader("trackerconfig.txt"))) {
+
+
             cfg = reader.readLine();
             if (!cfg.isEmpty()) {
                 String[] params = cfg.split("/");
@@ -138,7 +140,6 @@ public class FileTrackerController implements Initializable {
                 files.setText(params[1]);
                 telegramId.setText(params[2]);
             }
-            reader.close();
         } catch (IOException e) {
             e.printStackTrace();
         } catch (NullPointerException e) {
@@ -172,13 +173,12 @@ public class FileTrackerController implements Initializable {
         folder = selectedDirectory.toString();
         currentNumberOfFiles = Objects.requireNonNull(new File(folder).listFiles()).length;
         initialNumberOfFiles = Objects.requireNonNull(new File(folder).listFiles()).length;
-        firstIteration = true;
         folderPath.setText(shortenFolderPath());
     }
 
     private void openSettings() {
-            SettingsController settingsController = new SettingsController(this);
-            settingsController.showStage();
+        SettingsController settingsController = new SettingsController(this);
+        settingsController.showStage();
     }
 
     private void openInformation() {
@@ -189,48 +189,23 @@ public class FileTrackerController implements Initializable {
         alert.setHeaderText(null);
         alert.setContentText(
                 "-find telegram bot @Dmj_file_tracker_bot\n" +
-                "-write '/id' directly to bot or add bot to group\n" +
-                "   and write '/id' there to get your/group telegram id\n" +
-                "-fill in your/group telegram id\n" +
-                "-write '/start'(only first time)\n" +
-                "-choose directory\n" +
-                "-fill in report interval\n" +
-                "   or leave it '00m00s', if you want only final report\n" +
-                "-fill in final number of rendered files\n" +
-                "-use settings button to specify report options\n" +
-                "-to start - press power button\n" +
-                "-to force stop - press power button again\n" +
-                "-write '/report' to get actual report any time\n" +
-                "Thanks for using, for any problems or suggestions\n" +
-                "   contact me through damadj2@gmail.com");
+                        "-write '/id' directly to bot or add bot to group\n" +
+                        "   and write '/id' there to get your/group telegram id\n" +
+                        "-fill in your/group telegram id\n" +
+                        "-write '/start'(only first time)\n" +
+                        "-choose directory\n" +
+                        "-fill in report interval\n" +
+                        "   or leave it '00m00s', if you want only final report\n" +
+                        "-fill in final number of rendered files\n" +
+                        "-use settings button to specify report options\n" +
+                        "-to start - press power button\n" +
+                        "-to force stop - press power button again\n" +
+                        "-write '/report' to get actual report any time\n" +
+                        "-for steady working\n" +
+                        "   do not move files from selected folder while tracker is on\n\n" +
+                        "Thanks for using, for any problems or suggestions\n" +
+                        "   contact me through damadj2@gmail.com");
         alert.showAndWait();
-    }
-
-    private void startTrackingWithWarnings() {
-        int filesCap = Integer.parseInt(files.getText()) + initialNumberOfFiles;
-        if (currentNumberOfFiles < filesCap) {
-            if (counter >= 3) {
-                stopTracking();
-                fileTrackerBot.sendMessage(Long.parseLong(telegramId.getText()),"Files are not increasing for a long period, tracking stopped on: "
-                        + fileTrackerBot.getUserName());
-            }
-            int previousAmount = currentNumberOfFiles;
-            currentNumberOfFiles = Objects.requireNonNull(new File(folder).listFiles()).length;
-            if (currentNumberOfFiles > previousAmount) counter = 0;
-            if (previousAmount == currentNumberOfFiles && firstIteration && counter == 0) {
-                firstIteration = false;
-                fileTrackerBot.sendMessage(Long.parseLong(telegramId.getText()),"File tracker successfully started on: " + fileTrackerBot.getUserName());
-            }
-            else if (previousAmount == currentNumberOfFiles && counter != 3) {
-                counter++;
-                fileTrackerBot.sendMessage(Long.parseLong(telegramId.getText()),
-                        "WARNING! After last " + minutes.getText() + " minute(s) number of files("+ currentNumberOfFiles +") has not been increased on: "
-                                + fileTrackerBot.getUserName());
-            }
-        } else {
-            stopTracking();
-            fileTrackerBot.sendMessage(Long.parseLong(telegramId.getText()), "File tracker successfully finished on: " + fileTrackerBot.getUserName() + ", " + buildReport());
-        }
     }
 
     private void startTrackingWithoutNotifications() {
@@ -255,11 +230,10 @@ public class FileTrackerController implements Initializable {
     }
 
     private void prepareForStartTracker() {
-        try {
-            FileWriter writer = new FileWriter("trackerconfig.txt");
+        try (FileWriter writer = new FileWriter("trackerconfig.txt")) {
+
             writer.write("");
             writer.write(minutes.getText() + "/" + files.getText() + "/" + telegramId.getText());
-            writer.close();
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -284,7 +258,6 @@ public class FileTrackerController implements Initializable {
     private void stopTracking() {
         exec.shutdown();
         exec = Executors.newScheduledThreadPool(1);
-        firstIteration = true;
         btnPackage.setDisable(false);
         btnStart.setDisable(false);
         btnStart.setOpacity(1);
@@ -304,18 +277,18 @@ public class FileTrackerController implements Initializable {
     private String convertToMinutes(int secs) {
         int mins = secs / 60;
         int modulo = secs % 60;
-        return (mins + "m" + modulo +"s");
+        return (mins + "m" + modulo + "s");
     }
 
     private String parseFileNamesForExtensions() {
         Set<String> set = new HashSet<>();
-        if (selectedDirectory.listFiles().length > 0) {
-            for (File t : selectedDirectory.listFiles()) {
+        if (Objects.requireNonNull(selectedDirectory.listFiles()).length > 0) {
+            for (File t : Objects.requireNonNull(selectedDirectory.listFiles())) {
                 if (t.isFile())
                     if (t.toString().contains(".")) set.add(t.toString().substring(t.toString().lastIndexOf(".")));
             }
             String extensions = set.toString();
-            return  extensions.substring(1, extensions.length() - 1);
+            return extensions.substring(1, extensions.length() - 1);
         }
         return "no files";
     }
@@ -326,13 +299,13 @@ public class FileTrackerController implements Initializable {
             return "/" + beginning.substring(0, beginning.indexOf("/")) + "/..." + folder.substring(folder.lastIndexOf("/"));
         } else if (folder.split(Pattern.quote("\\")).length > 4) {
             return folder.substring(0, folder.indexOf("\\")) + "\\..." + folder.substring(folder.lastIndexOf("\\"));
-        }
-        else return folder;
+        } else return folder;
     }
 
     private String countFolderSize() {
         long length = 0;
-        for (File file : Objects.requireNonNull(selectedDirectory.listFiles())) if (file.isFile()) length += file.length();
+        for (File file : Objects.requireNonNull(selectedDirectory.listFiles()))
+            if (file.isFile()) length += file.length();
         return (Math.floor(length * 100.0 / 1048576) / 100) + "Mb";
     }
 
@@ -343,11 +316,15 @@ public class FileTrackerController implements Initializable {
     public String buildReport() {
         String report = "";
         if (checkBoxSettings.get("user")) report += "\npc username: " + fileTrackerBot.getUserName();
-        if (checkBoxSettings.get("totalTime")) report += "\ntotal render time: " + convertToMinutes((int) ((LocalDateTime.now().toEpochSecond(ZoneOffset.MIN) - startTime)));
-        if (checkBoxSettings.get("averageTime")) report += "\naverage render time: " + convertToMinutes(currentNumberOfFiles == initialNumberOfFiles ? 0 :
-                (int) ((LocalDateTime.now().toEpochSecond(ZoneOffset.MIN) - startTime) / (currentNumberOfFiles - initialNumberOfFiles)));
-        if (checkBoxSettings.get("renderFilesSinceReport")) report += "\nrendered files since last report: " + (currentNumberOfFiles - previousNumberOfFiles);
-        if (checkBoxSettings.get("totalRenderFiles")) report += "\nnumber of rendered files: " + (currentNumberOfFiles - initialNumberOfFiles);
+        if (checkBoxSettings.get("totalTime"))
+            report += "\ntotal render time: " + convertToMinutes((int) ((LocalDateTime.now().toEpochSecond(ZoneOffset.MIN) - startTime)));
+        if (checkBoxSettings.get("averageTime"))
+            report += "\naverage render time: " + convertToMinutes(currentNumberOfFiles == initialNumberOfFiles ? 0 :
+                    (int) ((LocalDateTime.now().toEpochSecond(ZoneOffset.MIN) - startTime) / (currentNumberOfFiles - initialNumberOfFiles)));
+        if (checkBoxSettings.get("renderFilesSinceReport"))
+            report += "\nrendered files since last report: " + (currentNumberOfFiles - previousNumberOfFiles);
+        if (checkBoxSettings.get("totalRenderFiles"))
+            report += "\nnumber of rendered files: " + (currentNumberOfFiles - initialNumberOfFiles);
         if (checkBoxSettings.get("extensions")) report += "\nfile formats: " + parseFileNamesForExtensions();
         if (checkBoxSettings.get("totalSize")) report += "\ntotal size of files: " + countFolderSize();
         if (checkBoxSettings.get("freeSpace")) report += "\nfree space left: " + countFreeSpace();
@@ -357,15 +334,8 @@ public class FileTrackerController implements Initializable {
     public boolean isStarted() {
         return started;
     }
-    public void setStarted(boolean started) {
-        this.started = started;
-    }
 
     public TextField getTelegramId() {
         return telegramId;
-    }
-
-    public void setTelegramId(TextField telegramId) {
-        this.telegramId = telegramId;
     }
 }
